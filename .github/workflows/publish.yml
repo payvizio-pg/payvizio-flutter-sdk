@@ -1,0 +1,32 @@
+name: Publish Flutter SDK
+
+# Tag-driven pub.dev publish via OIDC trusted publishing. Configure once at
+# https://pub.dev → publisher admin → "Automated publishing" → set repo to
+# the public repo + tag pattern v*.*.*. No PUB_TOKEN secret needed when OIDC
+# is configured.
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pub.dev
+    permissions:
+      id-token: write   # required for OIDC trusted publishing
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+      - name: Verify pubspec version matches tag
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG="$(grep -E '^version:' pubspec.yaml | sed 's/version:[[:space:]]*//')"
+          [ "$PKG" = "$TAG" ] || { echo "Version mismatch: pubspec=$PKG tag=$TAG"; exit 1; }
+      - run: flutter analyze
+      - run: flutter test --no-pub
+      - run: dart pub publish --force
